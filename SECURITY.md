@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in this project, please report it to us immediately. Do not post it publicly. You can contact us at [your-email@example.com].
+If you discover a security vulnerability in this project, please report it to us immediately. Do not post it publicly. You can contact us at [thenitesidedevs@gmail.com].
 
 ## Response Process
 
