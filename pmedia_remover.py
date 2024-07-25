@@ -1,79 +1,47 @@
 import os
-import mutagen
-from mutagen.easyid3 import EasyID3
+from mutagen.id3 import ID3, TXXX, error
 from tqdm import tqdm
-import logging
 
-def setup_logging(log_filename='metadata_removal_errors.log'):
-    logging.basicConfig(
-        filename=log_filename,
-        level=logging.ERROR,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
-    return log_filename
+def clean_metadata(file_path):
+    try:
+        audio = ID3(file_path)
+        keywords = ["www.t.me/pmedia_music", "P.M.E.D.I.A", "PMEDIA"]
+        removal_count = 0
 
-def remove_keywords_from_tags(directory, keywords):
+        for frame in audio.values():
+            if isinstance(frame, TXXX):
+                original_value = frame.text[0]
+                for keyword in keywords:
+                    if keyword in original_value:
+                        frame.text[0] = original_value.replace(keyword, '')
+                        removal_count += 1
+
+        audio.save(v2_version=3)  # Ensure the changes are saved properly
+        return removal_count, None
+    except Exception as e:
+        return 0, str(e)
+
+def main(directory):
+    error_log = []
+
+    audio_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(('.mp3', '.flac', '.ogg', '.m4a'))]
+    progress_bar = tqdm(audio_files, desc="Processing Files", unit="file")
     total_removals = 0
-    files_to_process = []
 
-    # Collect all music files to process first
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.lower().endswith((".mp3", ".flac", ".ogg", ".m4a")):
-                files_to_process.append(os.path.join(root, file))
+    for audio_file in progress_bar:
+        removals, error_message = clean_metadata(audio_file)
+        total_removals += removals
+        if error_message:
+            error_log.append(f"Error processing {audio_file}: {error_message}")
 
-    # Iterate with tqdm for progress bar
-    for filepath in tqdm(files_to_process, desc="Processing Files"):
-        try:
-            audio = mutagen.File(filepath, easy=True)
-            if audio is not None:
-                modified = False
-                for tag in audio:
-                    if tag in EasyID3.valid_keys:
-                        if isinstance(audio[tag], list):
-                            new_values = []
-                            for value in audio[tag]:
-                                for keyword in keywords:
-                                    if keyword.lower() in value.lower():
-                                        value = value.replace(keyword, "")
-                                        total_removals += 1
-                                        modified = True
-                                new_values.append(value)
-                            audio[tag] = new_values
-                        elif isinstance(audio[tag], str):
-                            for keyword in keywords:
-                                if keyword.lower() in audio[tag].lower():
-                                    audio[tag] = audio[tag].replace(keyword, "")
-                                    total_removals += 1
-                                    modified = True
+    print(f"Total removals: {total_removals}")
 
-                if modified:
-                    audio.save()
-
-        except mutagen.MutagenError as e:
-            logging.error(f"Error reading metadata for {filepath}: {e}")
-            continue
-
-    return total_removals
+    if error_log:
+        with open(os.path.join(directory, "error_log.txt"), "w") as log_file:
+            log_file.write("\n".join(error_log))
 
 if __name__ == "__main__":
-    log_filename = setup_logging()
-    default_directory = os.getcwd()
-    music_directory = input(f"Enter the directory to search (leave blank for current directory '{default_directory}'): ")
-
-    if not music_directory.strip():
-        music_directory = default_directory
-
-    keywords_to_remove = ["www.t.me/pmedia_music", "P.M.E.D.I.A", "PMEDIA"]
-
-    total_removed = remove_keywords_from_tags(music_directory, keywords_to_remove)
-    print(f"\nTotal keywords removed: {total_removed}")
-
-    # Check if the log file exists and is not empty
-    if os.path.exists(log_filename) and os.path.getsize(log_filename) > 0:
-        log_path = os.path.abspath(log_filename)
-        print(f"\nErrors were found during the process. Please check the log file at: {log_path}")
-    else:
-        print("\nNo errors were found during the process.")
-
-# Created by - The Nite-Side Devs -
+    directory = input("Enter the directory containing the audio files: ")
+    main(directory)
+    
+# - The Nite-Side Devs -
